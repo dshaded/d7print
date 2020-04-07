@@ -29,11 +29,13 @@ def create_app():
         # hw_manager.is_on_hold()
         # hw_manager.resume()
         # hw_manager.set_image_pack()
-        return hw_man.get_log(request.args.get('id', default=0, type=int))
+        return {'log': hw_man.get_log(request.args.get('id', default=0, type=int))}
 
     @app.route('/exec', methods=['GET'])
     def execute():
-        return hw_man.add_commands(request.args.get('cmd', default=''))
+        cmd = request.args.get('cmd', default='')
+        hw_man.add_commands([cmd])
+        return cmd
 
     @app.route('/grbl_state', methods=['GET'])
     def grbl_state():
