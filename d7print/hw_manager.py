@@ -25,7 +25,7 @@ class HwManager:
         self._serial = Serial()
         self._serial.port = '/dev/ttyS3'
         self._serial.baudrate = 115200
-        self._serial.timeout = 1
+        self._serial.timeout = 0
         self._recv_buf = bytearray()
         self._guard_file = '/var/run/d7print.guard'
         self._guard_time = 0
@@ -41,10 +41,13 @@ class HwManager:
         self._commands: deque[str] = deque()
         self._run_log = deque(maxlen=1000)
         self._log_lock = Lock()
+        self._await_response: bool = False
+        self._grbl_homing: bool = False
         self._grbl_state_line: str = ''
-        self._grbl_state_line_wco: str = ''
-        self._grbl_state_line_ov: str = ''
+        self._grbl_ov_line: str = ''
+        self._grbl_wco_line: str = ''
         self._grbl_state: str = ''
+        self._grbl_prev_state: str = ''
         self._image_pack_path: str = ''
 
         self._run_thread_obj: Optional[Thread] = None
@@ -52,6 +55,9 @@ class HwManager:
 
     def set_image_pack(self, image_pack_path: str):
         self._image_pack_path = image_pack_path
+
+    def get_image_pack(self) -> str:
+        return self._image_pack_path
 
     def add_commands(self, commands: List[str]):
         self._ensure_running()
@@ -80,6 +86,7 @@ class HwManager:
     def hard_stop(self):
         self._reset_pin(0)
         self._commands.clear()
+        self._hold = False
         self._reset_pin(1)
 
     def get_log(self, first_log_entry_id: int):
@@ -93,8 +100,8 @@ class HwManager:
                 first_pos = first_log_entry_id - first_id
         return log_list[first_pos:]
 
-    def get_grbl_state_lines(self):
-        return self._grbl_state_line, self._grbl_state_line_wco, self._grbl_state_line_ov
+    def get_grbl_state_line(self):
+        return self._grbl_state_line + self._grbl_wco_line + self._grbl_ov_line
 
     # PRIVATE Section
 
@@ -119,12 +126,11 @@ class HwManager:
 
     # noinspection PyMethodMayBeStatic
     def _show_zip_image(self, image_pack_path: str, image_name: str):
-        print(image_pack_path, image_name)
         with open(self._fb_device, 'wb') as fb:
             if not image_name:
                 fb.write(Image.new('RGBX', self._display_size).tobytes())
             else:
-                with open(image_pack_path) as pf, ZipFile(pf) as zf, zf.open(image_name) as zi, Image.open(zi) as i:
+                with ZipFile(image_pack_path) as zf, zf.open(image_name) as zi, Image.open(zi) as i:
                     fb.write(i.tobytes())
 
     # noinspection PyMethodMayBeStatic
@@ -146,12 +152,18 @@ class HwManager:
 
         self._log_add(f'>>> {raw_cmd}')
 
-        if lcmd == 'reset':
+        if lcmd == 'reset' or lcmd == '\x18':
             self._serial_write('\x18')
         elif lcmd == 'hwreset':
             self._reset_pin(0)
             sleep(0.1)
             self._reset_pin(1)
+        elif lcmd == 'reboot':
+            self._reset_pin(0)
+            os.system('systemctl reboot')
+        elif lcmd == 'shutdown':
+            self._reset_pin(0)
+            os.system('systemctl poweroff')
         elif lcmd == '!':
             self._hold = True
             self._serial_write('!')
@@ -162,6 +174,9 @@ class HwManager:
             img_name = re.findall(r'[0-9a-z]+.png', cmd, RegexFlag.IGNORECASE)
             self._show_zip_image(self._image_pack_path, img_name[0] if img_name else '')
         else:
+            if lcmd.startswith('$h'):
+                self._grbl_homing = True
+            self._await_response = True
             self._serial_write(cmd)
             self._serial_write('\n')
 
@@ -179,7 +194,6 @@ class HwManager:
         self._shutdown_guard_init()
 
         while True:
-            sleep(0.1)
             if self._check_shutdown():
                 self._log_add('Hw manager thread stopped by guard file')
                 self._serial.close()
@@ -187,6 +201,9 @@ class HwManager:
             try:
                 if not self._serial.is_open:
                     self._serial.open()
+                sleep(0.05)
+                self._exec('?')
+                sleep(0.05)
                 self._read_loop()
                 self._run_loop()
             except Exception as e:
@@ -207,30 +224,47 @@ class HwManager:
             line = str(self._recv_buf, 'ascii')
             self._recv_buf.clear()
             if line.startswith('<'):
-                if line.find('WCO:') > 0:
-                    self._grbl_state_line_wco = line
-                elif line.find('Ov:') > 0:
-                    self._grbl_state_line_ov = line
+                wco_pos = line.find('|WCO:')
+                ov_pos = line.find('|Ov:')
+                if wco_pos > 0:
+                    self._grbl_wco_line = line[wco_pos:-1]
+                    self._grbl_state_line = line[1:wco_pos]
+                elif ov_pos > 0:
+                    self._grbl_ov_line = line[ov_pos:-1]
+                    self._grbl_state_line = line[1:ov_pos]
                 else:
-                    self._grbl_state_line = line
+                    self._grbl_state_line = line[1:-1]
+
                 new_state = re.match(r'<(.+?)\|', line).group(1)
-                if new_state != self._grbl_state:
-                    self._log_add(line)
+                if new_state == self._grbl_prev_state:
+                    self._grbl_state = new_state  # do not log single state switches run-idle-run
+                if new_state != self._grbl_prev_state and new_state == self._grbl_state:
+                    self._log_add(new_state)
+                self._grbl_prev_state = self._grbl_state
                 self._grbl_state = new_state
                 self._state_missing_counter = 0
             else:
                 self._log_add(line)
                 if line.startswith('error'):
+                    self._grbl_homing = False
+                    self._await_response = False
                     self._hold = True
+                elif line.startswith('ok'):
+                    self._grbl_homing = False
+                    self._await_response = False
+
         else:
             self._recv_buf.append(b)
 
     def _read_loop(self):
         if self._state_missing_counter < 10:
-            self._state_missing_counter += 1
+            if not self._grbl_homing:
+                self._state_missing_counter += 1
         else:
             self._grbl_state = 'NoInfo'
             self._grbl_state_line = ''
+            self._grbl_ov_line = ''
+            self._grbl_wco_line = ''
         while True:
             try:
                 data = self._serial.read(4096)
@@ -255,9 +289,10 @@ class HwManager:
         elif self._force_soft_reset:
             self._exec('reset')
             self._force_soft_reset = False
+            self._hold = False
         elif holding and not self._hold:
             self._exec('~')
-        elif idle and self._commands:
+        elif idle and not self._await_response and self._commands:
             self._exec(self._commands.popleft())
         elif not idle and not running and not holding:
             if self._commands:
@@ -266,5 +301,3 @@ class HwManager:
                     self._exec(self._commands.popleft())
                 else:
                     raise GrblStateException(f'Invalid grbl state: {self._grbl_state} for {cmd}')
-
-        self._exec('?')
