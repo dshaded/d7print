@@ -297,7 +297,7 @@ class HwManager:
         elif not idle and not running and not holding:
             if self._commands:
                 cmd = self._commands[0]
-                if cmd.startswith('$') or cmd == 'reset' or cmd == 'hwreset':
+                if cmd.startswith('$') or cmd in ['reset', 'hwreset', 'reboot', 'shutdown']:
                     self._exec(self._commands.popleft())
                 else:
                     raise GrblStateException(f'Invalid grbl state: {self._grbl_state} for {cmd}')
