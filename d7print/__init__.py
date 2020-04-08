@@ -37,8 +37,13 @@ def create_app():
         hw_man.add_commands([cmd])
         return cmd
 
+    @app.route('/resume', methods=['GET'])
+    def resume():
+        hw_man.resume()
+        return 'OK'
+
     @app.route('/grbl_state', methods=['GET'])
     def grbl_state():
-        return {'state': hw_man.get_grbl_state_line()}
+        return {'state': hw_man.get_grbl_state_lines()}
 
     return app

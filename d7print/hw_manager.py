@@ -5,7 +5,7 @@ from collections import deque
 from re import RegexFlag
 from threading import Lock, Thread
 from time import sleep
-from typing import List
+from typing import List, Optional
 from zipfile import ZipFile
 
 from PIL import Image
@@ -33,6 +33,7 @@ class HwManager:
         self._gpio_reset_path = '/sys/class/gpio/gpio7/value'
         open('/sys/class/gpio/export', 'w').write('7')
         open('/sys/class/gpio/gpio7/direction', 'w').write('high')
+        self._display_size = 1440, 2560
 
         self._state_missing_counter = 0
         self._hold = False
@@ -41,17 +42,19 @@ class HwManager:
         self._run_log = deque(maxlen=1000)
         self._log_lock = Lock()
         self._grbl_state_line: str = ''
+        self._grbl_state_line_wco: str = ''
+        self._grbl_state_line_ov: str = ''
         self._grbl_state: str = ''
         self._image_pack_path: str = ''
 
-        self._run_thread_obj = Thread(target=self._run_thread, name='hw_run', daemon=True)
-        self._run_thread_obj.start()
+        self._run_thread_obj: Optional[Thread] = None
+        self._ensure_running()
 
     def set_image_pack(self, image_pack_path: str):
-        # todo - ensure restart thread
         self._image_pack_path = image_pack_path
 
     def add_commands(self, commands: List[str]):
+        self._ensure_running()
         self._commands.extend(commands)
 
     def get_commands(self) -> List[str]:
@@ -60,12 +63,15 @@ class HwManager:
     def clear_commands(self, soft_reset=False):
         self._commands.clear()
         if soft_reset:
+            self._ensure_running()
             self._force_soft_reset = True
 
     def hold(self):
+        self._ensure_running()
         self._hold = True
 
     def resume(self):
+        self._ensure_running()
         self._hold = False
 
     def is_on_hold(self):
@@ -87,10 +93,15 @@ class HwManager:
                 first_pos = first_log_entry_id - first_id
         return log_list[first_pos:]
 
-    def get_grbl_state_line(self):
-        return self._grbl_state_line
+    def get_grbl_state_lines(self):
+        return self._grbl_state_line, self._grbl_state_line_wco, self._grbl_state_line_ov
 
     # PRIVATE Section
+
+    def _ensure_running(self):
+        if not self._run_thread_obj or not self._run_thread_obj.is_alive():
+            self._run_thread_obj = Thread(target=self._run_thread, name='hw_run', daemon=True)
+            self._run_thread_obj.start()
 
     def _log_add(self, msg: str, e: Exception = None):
         if e:
@@ -108,10 +119,13 @@ class HwManager:
 
     # noinspection PyMethodMayBeStatic
     def _show_zip_image(self, image_pack_path: str, image_name: str):
-        # todo - add blank support
-        with open(image_pack_path) as pf, ZipFile(pf) as zf, zf.open(image_name) as zi, \
-                Image.open(zi) as i, open(self._fb_device, 'wb') as fb:
-            fb.write(i.tobytes())
+        print(image_pack_path, image_name)
+        with open(self._fb_device, 'wb') as fb:
+            if not image_name:
+                fb.write(Image.new('RGBX', self._display_size).tobytes())
+            else:
+                with open(image_pack_path) as pf, ZipFile(pf) as zf, zf.open(image_name) as zi, Image.open(zi) as i:
+                    fb.write(i.tobytes())
 
     # noinspection PyMethodMayBeStatic
     def _reset_pin(self, state):
@@ -120,16 +134,17 @@ class HwManager:
     def _serial_write(self, cmd: str):
         self._serial.write(bytes(cmd, 'ascii'))
 
-    def _exec(self, cmd: str):
-        cmd = cmd.partition(';')[0].strip()
+    def _exec(self, raw_cmd: str):
+        cmd = raw_cmd.partition(';')[0].strip()
         lcmd = cmd.lower()
         if not lcmd:
+            self._log_add(f'>>> {raw_cmd}')
             return
         if lcmd == '?':
             self._serial_write('?')
             return
 
-        self._log_add(f'>>> {cmd}')
+        self._log_add(f'>>> {raw_cmd}')
 
         if lcmd == 'reset':
             self._serial_write('\x18')
@@ -137,15 +152,15 @@ class HwManager:
             self._reset_pin(0)
             sleep(0.1)
             self._reset_pin(1)
-        elif lcmd == 'hold':
+        elif lcmd == '!':
             self._hold = True
             self._serial_write('!')
-        elif lcmd == 'resume':
+        elif lcmd == '~':
             self._hold = False
             self._serial_write('~')
         elif lcmd.startswith('slice'):
-            img_name = re.findall(r'[0-9a-z.png]', cmd, RegexFlag.IGNORECASE)
-            self._show_zip_image(self._image_pack_path, img_name[0] if img_name else 'blank')
+            img_name = re.findall(r'[0-9a-z]+.png', cmd, RegexFlag.IGNORECASE)
+            self._show_zip_image(self._image_pack_path, img_name[0] if img_name else '')
         else:
             self._serial_write(cmd)
             self._serial_write('\n')
@@ -192,7 +207,12 @@ class HwManager:
             line = str(self._recv_buf, 'ascii')
             self._recv_buf.clear()
             if line.startswith('<'):
-                self._grbl_state_line = line
+                if line.find('WCO:') > 0:
+                    self._grbl_state_line_wco = line
+                elif line.find('Ov:') > 0:
+                    self._grbl_state_line_ov = line
+                else:
+                    self._grbl_state_line = line
                 new_state = re.match(r'<(.+?)\|', line).group(1)
                 if new_state != self._grbl_state:
                     self._log_add(line)
@@ -231,12 +251,12 @@ class HwManager:
         holding = self._grbl_state == 'Hold:0'
 
         if self._hold and (idle or running):  # ensure hold before soft-reset if both flags set
-            self._exec('hold')
+            self._exec('!')
         elif self._force_soft_reset:
             self._exec('reset')
             self._force_soft_reset = False
         elif holding and not self._hold:
-            self._exec('resume')
+            self._exec('~')
         elif idle and self._commands:
             self._exec(self._commands.popleft())
         elif not idle and not running and not holding:
