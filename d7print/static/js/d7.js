@@ -45,7 +45,6 @@ btn_load.click(function() {
         if(data.status != 'ok') {
             alert(data.status)
         } else {
-            $('#title-file-name').text(" : " + file)
             cmd_to_send.val(data.gcode.join('\n'))
         }
     })
@@ -92,6 +91,7 @@ setInterval(function() {
             }
             cmd_queue.val(data.queue.join('\n'))
             $('#text-grbl-state').val(data.state)
+            $('#title-file-name').text(data.file ? " : " + data.file : '')
         } else {
             console.log(data)
         }

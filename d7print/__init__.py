@@ -111,6 +111,7 @@ def create_app():
             'status': 'ok',
             'log': hw_man.get_log(idx),
             'queue': hw_man.get_commands(),
+            'file': os.path.basename(hw_man.get_image_pack()),
             'state': hw_man.get_grbl_state_line()
         }
 
