@@ -50,6 +50,8 @@ class HwManager:
         self._grbl_prev_state: str = ''
         self._image_pack_path: str = ''
 
+        self._img_mask: Image.Image = Image.open(os.path.dirname(os.path.abspath(__file__)) + 'mask.png').convert('L')
+
         self._run_thread_obj: Optional[Thread] = None
         self._ensure_running()
 
@@ -127,11 +129,11 @@ class HwManager:
     # noinspection PyMethodMayBeStatic
     def _show_zip_image(self, image_pack_path: str, image_name: str):
         with open(self._fb_device, 'wb') as fb:
-            if not image_name:
-                fb.write(Image.new('RGBX', self._display_size).tobytes())
-            else:
+            img = Image.new('RGBA', self._display_size, (0x00, 0x00, 0x00, 0xff))
+            if image_name:
                 with ZipFile(image_pack_path) as zf, zf.open(image_name) as zi, Image.open(zi) as i:
-                    fb.write(i.tobytes())
+                    img.paste(i, mask=self._img_mask)
+            fb.write(img.tobytes())
 
     # noinspection PyMethodMayBeStatic
     def _reset_pin(self, state):
@@ -171,7 +173,7 @@ class HwManager:
             self._hold = False
             self._serial_write('~')
         elif lcmd.startswith('slice'):
-            img_name = re.findall(r'[0-9a-z]+.png', cmd, RegexFlag.IGNORECASE)
+            img_name = re.findall(r'[0-9a-z_-]+.png', cmd, RegexFlag.IGNORECASE)
             self._show_zip_image(self._image_pack_path, img_name[0] if img_name else '')
         else:
             if lcmd.startswith('$h'):
