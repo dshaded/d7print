@@ -11,7 +11,7 @@
 
 <div class="container">
     <div class="page-header">
-        <h1>D7 3D-print <small id="title-file-name">{{ ' : ' + active_file if active_file }}</small></h1>
+        <h1>D7 3D-print : <small id="title-file-name">{{ active_file if active_file else '<Root dir>' }}</small></h1>
         {% with messages = get_flashed_messages(with_categories=true) %}
         {% if messages %}
         {% for category, message in messages %}
@@ -31,7 +31,7 @@
                 <div class="form-row">
                     <div class="col-6 mr-sm-3">
                         <select class="form-control" id="current-file-select">
-                            <option value="">Select zip...</option>
+                            <option value="" {{'selected' if not select}}>&lt;Root dir&gt;</option>
                             {% for file in files %}
                             <option value="{{file}}" {{'selected' if file == select}}>{{file}}</option>
                             {% endfor %}
@@ -51,7 +51,7 @@
                 <div class="form-row">
                     <div class="col-8 custom-file mx-sm-3">
                         <input type="file" class="custom-file-input" id="customFile" name="upload" required>
-                        <label class="custom-file-label" for="customFile">Choose new zip...</label>
+                        <label class="custom-file-label" for="customFile">Choose new file...</label>
                     </div>
                     <div class="col-auto">
                         <button type="submit" class="btn btn-primary mb-2">Upload</button>

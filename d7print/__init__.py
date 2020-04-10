@@ -34,16 +34,15 @@ dictConfig({
 def create_app():
     app = Flask(__name__)
     app.secret_key = 'd7_print_secret_key'
-
-    hw_man = HwManager(app)
-
     uploads_dir = '/root/uploads/'
     os.makedirs(uploads_dir, 0o664, exist_ok=True)
 
+    hw_man = HwManager(app, uploads_dir)
+
     @app.route('/')
     def home():
-        active_file = os.path.basename(hw_man.get_image_pack())
-        select = active_file or request.args.get('select', '')
+        active_file = hw_man.get_image_pack()
+        select = request.args.get('select', '') or active_file
         files = sorted(os.listdir(uploads_dir))
         return render_template('home.htm', select=select, files=files, active_file=active_file)
 
@@ -51,12 +50,11 @@ def create_app():
     def upload():
         f: FileStorage = request.files['upload']
         sec_name = secure_filename(f.filename)
-        if f.content_type == 'application/zip':
-            f.save(uploads_dir + sec_name)
-            return redirect(url_for('home', select=sec_name))
-        else:
-            flash('Not a zip archive', 'warning')
+        if not sec_name:
+            flash('Invalid file name', 'warning')
             return redirect(url_for('home'))
+        f.save(uploads_dir + sec_name)
+        return redirect(url_for('home', select=sec_name))
 
     # API SECTION
 
@@ -76,7 +74,12 @@ def create_app():
         if hw_man.get_commands():
             return {'status': 'Printer busy'}
 
-        file: str = secure_filename(_rp('file'))
+        file: str = _rp('file')
+        if not file:
+            hw_man.set_image_pack('')
+            return {'status': 'ok'}
+
+        file = secure_filename(file)
         if not file:
             return {'status': 'Bad filename'}
 
@@ -85,7 +88,7 @@ def create_app():
             rm_newline = str.maketrans('', '', '\r\n')
             with ZipFile(path) as zf, zf.open('run.gcode') as gcode:
                 text = list(str(l, 'utf8').translate(rm_newline) for l in gcode.readlines())
-                hw_man.set_image_pack(path)
+                hw_man.set_image_pack(file)
                 return {'status': 'ok', 'gcode': text}
         except Exception as e:
             return {'status': str(e)}
@@ -95,10 +98,12 @@ def create_app():
         file: str = secure_filename(_rp('file'))
         if file:
             try:
-                path = uploads_dir + file
-                if path == hw_man.get_image_pack():
-                    return {'status': 'File is loaded'}
-                os.unlink(path)
+                if file == hw_man.get_image_pack():
+                    if hw_man.get_commands():
+                        return {'status': 'File is in use by printer'}
+                    else:
+                        hw_man.set_image_pack('')
+                os.unlink(uploads_dir + file)
                 return {'status': 'ok'}
             except FileNotFoundError:
                 return {'status': 'Not found'}
@@ -106,12 +111,12 @@ def create_app():
 
     @app.route('/api/info', methods=['GET'])
     def info():
-        idx = request.args.get('id', default=0, type=int)
+        time = request.args.get('time', default=0, type=int)
         return {
             'status': 'ok',
-            'log': hw_man.get_log(idx),
+            'log': [l for l in hw_man.get_log() if l['time'] >= time],
             'queue': hw_man.get_commands(),
-            'file': os.path.basename(hw_man.get_image_pack()),
+            'file': hw_man.get_image_pack(),
             'state': hw_man.get_grbl_state_line()
         }
 

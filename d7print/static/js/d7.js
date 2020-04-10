@@ -8,14 +8,6 @@ var cmd_to_send = $('#cmd-to-send')
 var cmd_log = $('#cmd-log')
 var cmd_queue = $('#cmd-queue')
 
-function toggle_file_buttons() {
-    var disable = !file_select.val()
-    btn_load.prop('disabled', disable)
-    btn_delete.prop('disabled', disable)
-}
-file_select.change(toggle_file_buttons)
-toggle_file_buttons()
-
 $('#btn-send').click(function() {
     var commands = cmd_to_send.val()
     $.post('/api/exec', { cmd: commands }).done(function(data) {
@@ -45,7 +37,9 @@ btn_load.click(function() {
         if(data.status != 'ok') {
             alert(data.status)
         } else {
-            cmd_to_send.val(data.gcode.join('\n'))
+            if(data.gcode) {
+                cmd_to_send.val(data.gcode.join('\n'))
+            }
         }
     })
     return false
@@ -78,25 +72,31 @@ form_cmd.submit(function() {
     return false
 })
 
-var last_log_id = 0
+var last_log_id = -1
+var last_log_time = 0
 setInterval(function() {
     $.ajax('/api/info', {
-        data: {id: last_log_id + 1},
-        timeout: 1000
+        data: {time: Math.floor(last_log_time)},
+        timeout: 2000
     }).done(function(data) {
         if(data.status == 'ok') {
             for(l of data.log) {
-                cmd_log.val(function(index, old){ return l.msg + '\n' + old })
-                last_log_id = l.id
+                if(l.id < last_log_id && l.time > (last_log_time + 0.01)) {
+                    last_log_id = -1
+                }
+                if(l.id > last_log_id) {
+                    cmd_log.val(function(index, old){ return l.msg + '\n' + old })
+                    last_log_id = l.id
+                    last_log_time = l.time
+                }
             }
             cmd_queue.val(data.queue.join('\n'))
             $('#text-grbl-state').val(data.state)
-            $('#title-file-name').text(data.file ? " : " + data.file : '')
+            $('#title-file-name').text(data.file ? data.file : '<Root dir>')
         } else {
-            console.log(data)
+            $('#text-grbl-state').val(data.status)
         }
     }).fail(function() {
-        last_log_id = 0
         $('#text-grbl-state').val('No connection')
     })
-}, 1000)
+}, 2000)

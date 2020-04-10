@@ -19,7 +19,7 @@ class GrblStateException(Exception):
 
 class HwManager:
 
-    def __init__(self, app: Flask):
+    def __init__(self, app: Flask, pack_dir: str):
         self._app = app
 
         self._serial = Serial()
@@ -39,7 +39,7 @@ class HwManager:
         self._hold = False
         self._force_soft_reset = False
         self._commands: deque[str] = deque()
-        self._run_log = deque(maxlen=1000)
+        self._run_log = deque(maxlen=100)
         self._log_lock = Lock()
         self._await_response: bool = False
         self._grbl_homing: bool = False
@@ -48,18 +48,20 @@ class HwManager:
         self._grbl_wco_line: str = ''
         self._grbl_state: str = ''
         self._grbl_prev_state: str = ''
-        self._image_pack_path: str = ''
+        self._delay_end: Optional[float] = None
+        self._image_pack_file: str = ''
+        self._image_pack_dir = pack_dir
 
-        self._img_mask: Image.Image = Image.open(os.path.dirname(os.path.abspath(__file__)) + 'mask.png').convert('L')
+        self._img_mask: Image.Image = Image.open(os.path.dirname(os.path.abspath(__file__)) + '/mask.png').convert('L')
 
         self._run_thread_obj: Optional[Thread] = None
         self._ensure_running()
 
     def set_image_pack(self, image_pack_path: str):
-        self._image_pack_path = image_pack_path
+        self._image_pack_file = image_pack_path
 
     def get_image_pack(self) -> str:
-        return self._image_pack_path
+        return self._image_pack_file
 
     def add_commands(self, commands: List[str]):
         self._ensure_running()
@@ -91,16 +93,9 @@ class HwManager:
         self._hold = False
         self._reset_pin(1)
 
-    def get_log(self, first_log_entry_id: int):
+    def get_log(self):
         with self._log_lock:
-            log_list = list(self._run_log)
-
-        first_pos = 0
-        if log_list:
-            first_id: int = log_list[0]['id']
-            if first_log_entry_id > first_id:
-                first_pos = first_log_entry_id - first_id
-        return log_list[first_pos:]
+            return list(self._run_log)
 
     def get_grbl_state_line(self):
         return self._grbl_state_line + self._grbl_wco_line + self._grbl_ov_line
@@ -126,16 +121,24 @@ class HwManager:
                 'msg': msg,
             })
 
-    # noinspection PyMethodMayBeStatic
-    def _show_zip_image(self, image_pack_path: str, image_name: str):
+    def _show_image(self, image_name: str):
         with open(self._fb_device, 'wb') as fb:
             img = Image.new('RGBA', self._display_size, (0x00, 0x00, 0x00, 0xff))
             if image_name:
-                with ZipFile(image_pack_path) as zf, zf.open(image_name) as zi, Image.open(zi) as i:
-                    img.paste(i, mask=self._img_mask)
+                applied = False
+                if self._image_pack_file:
+                    pack_path = self._image_pack_dir + self._image_pack_file
+                    with ZipFile(pack_path) as zf:
+                        if image_name in zf.namelist():
+                            with zf.open(image_name) as zi, Image.open(zi) as i:
+                                img.paste(i, mask=self._img_mask)
+                                applied = True
+                if not applied:
+                    with Image.open(self._image_pack_dir + image_name) as i:
+                        img.paste(i, mask=self._img_mask)
+
             fb.write(img.tobytes())
 
-    # noinspection PyMethodMayBeStatic
     def _reset_pin(self, state):
         open(self._gpio_reset_path, 'w').write('1' if state else '0')
 
@@ -174,7 +177,10 @@ class HwManager:
             self._serial_write('~')
         elif lcmd.startswith('slice'):
             img_name = re.findall(r'[0-9a-z_-]+.png', cmd, RegexFlag.IGNORECASE)
-            self._show_zip_image(self._image_pack_path, img_name[0] if img_name else '')
+            self._show_image(img_name[0] if img_name else '')
+        elif lcmd.startswith('delay'):
+            millis = re.findall(r'[0-9]+', lcmd)
+            self._delay_end = time.time() + int(millis[0] if millis else 0) / 1000
         else:
             if lcmd.startswith('$h'):
                 self._grbl_homing = True
@@ -283,8 +289,15 @@ class HwManager:
         idle = self._grbl_state == 'Idle'
         running = self._grbl_state == 'Run' \
             or self._grbl_state == 'Home' \
-            or self._grbl_state == 'Hold:1'
+            or self._grbl_state == 'Hold:1' \
+            or self._await_response
         holding = self._grbl_state == 'Hold:0'
+
+        if self._delay_end:
+            if self._delay_end <= time.time():
+                self._delay_end = None
+            else:
+                running = True
 
         if self._hold and (idle or running):  # ensure hold before soft-reset if both flags set
             self._exec('!')
@@ -292,9 +305,10 @@ class HwManager:
             self._exec('reset')
             self._force_soft_reset = False
             self._hold = False
+            self._delay_end = 0
         elif holding and not self._hold:
             self._exec('~')
-        elif idle and not self._await_response and self._commands:
+        elif idle and self._commands:
             self._exec(self._commands.popleft())
         elif not idle and not running and not holding:
             if self._commands:
