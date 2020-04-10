@@ -48,7 +48,7 @@ class HwManager:
         self._grbl_wco_line: str = ''
         self._grbl_state: str = ''
         self._grbl_prev_state: str = ''
-        self._delay_end: Optional[float] = None
+        self._delay_end: float = 0.0
         self._image_pack_file: str = ''
         self._image_pack_dir = pack_dir
 
@@ -287,17 +287,9 @@ class HwManager:
 
     def _run_loop(self):
         idle = self._grbl_state == 'Idle'
-        running = self._grbl_state == 'Run' \
-            or self._grbl_state == 'Home' \
-            or self._grbl_state == 'Hold:1' \
-            or self._await_response
-        holding = self._grbl_state == 'Hold:0'
-
-        if self._delay_end:
-            if self._delay_end <= time.time():
-                self._delay_end = None
-            else:
-                running = True
+        running = self._grbl_state in ('Run', 'Home')
+        holding = self._grbl_state in ('Hold:0', 'Hold:1')
+        waiting = self._await_response or self._delay_end > time.time()
 
         if self._hold and (idle or running):  # ensure hold before soft-reset if both flags set
             self._exec('!')
@@ -305,12 +297,12 @@ class HwManager:
             self._exec('reset')
             self._force_soft_reset = False
             self._hold = False
-            self._delay_end = 0
+            self._delay_end = 0.0
         elif holding and not self._hold:
             self._exec('~')
-        elif idle and self._commands:
+        elif idle and not waiting and self._commands:
             self._exec(self._commands.popleft())
-        elif not idle and not running and not holding:
+        elif not idle and not running and not holding and not waiting:
             if self._commands:
                 cmd = self._commands[0]
                 if cmd.startswith('$') or cmd in ['reset', 'hwreset', 'reboot', 'shutdown']:
