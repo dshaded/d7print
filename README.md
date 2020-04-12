@@ -41,20 +41,20 @@ $ wget http://archlinuxarm.org/os/ArchLinuxARM-armv7-latest.tar.gz
 # mkimage -A arm -O linux -T script -C none -a 0 -e 0 -n "NanoPi M1 Boot Script" -d /.../repo_dir/system/boot.cmd mnt/boot/boot.scr
 # # install device tree compiler if not already installed
 # pacman -S dtc
-# # compile custom dts to a binary form (or simply copy compiled version from `system`)
-# dtc -I dts -O dtb -o mnt/sun8i-h3-nanopi-m1.dtb /.../repo_dir/system/sun8i-h3-nanopi-m1.dts
+# # compile custom dts to a binary form (or simply copy compiled version from system dir)
+# dtc -I dts -O dtb -o mnt/boot/sun8i-h3-nanopi-m1.dtb /.../repo_dir/system/sun8i-h3-nanopi-m1.dts
 # # you can also compare this custom dts to ALARM's provided version by decompiling it with
-# # dtc -I dtb -O dts -o mnt/sun8i-h3-nanopi-m1.dts mnt/sun8i-h3-nanopi-m1.dtb
+# # dtc -I dtb -O dts -o mnt/boot/sun8i-h3-nanopi-m1.dts mnt/boot/dtbs/sun8i-h3-nanopi-m1.dtb
 # unmount mnt
 ```
 * Download/checkout/build/flash latest U-Boot with custom build config. This config disables framebuffer handover from bootloader to
-kernel as this feature seems to be broken for nanopi (kernel fails to start with connected hdmi device). By the way, u-boot's `make menuconfig`
+kernel as this feature seems to be broken for nanopi (CONFIG_VIDEO_DT_SIMPLEFB, kernel fails to start with connected hdmi device). By the way, u-boot's `make menuconfig`
 feature might be slightly broken as it fails to save your config twice in a row. You must perform a load before second save.
 ```
 $ git clone http://git.denx.de/u-boot.git
+$ cd u-boot
 $ git tag -l
 $ git checkout tags/v2019.04 # or whatever tag is the latest
-$ cd u-boot
 $ cp /.../repo_dir/system/nanopi_m1_nofb_defconfig configs/
 $ make -j4 ARCH=arm CROSS_COMPILE=arm-none-eabi- nanopi_m1_nofb_defconfig
 $ make -j4 ARCH=arm CROSS_COMPILE=arm-none-eabi-
