@@ -1,0 +1,11 @@
+[Unit]
+Description=D7 3d-printing python service
+
+[Service]
+Environment=FLASK_APP=d7print
+ExecStart=/usr/bin/flask run --port 80 --host 0.0.0.0
+WorkingDirectory=/opt/
+User=root
+
+[Install]
+WantedBy=multi-user.target

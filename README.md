@@ -35,7 +35,7 @@ $ wget http://archlinuxarm.org/os/ArchLinuxARM-armv7-latest.tar.gz
 # bsdtar -xpf ArchLinuxARM-armv7-latest.tar.gz -C mnt/
 # sync
 ```
-* Use customized `boot.cmd` from this repo `system` dir to create `boot.csr` for U-Boot. It simply trys to load custom dtb
+* Use customized `boot.cmd` from this repo `system` dir to create `boot.scr` for U-Boot. It simply trys to load custom dtb
   file from `/boot/` dir before pacman's managed `/boot/dtbs/`. This dtb is customized to enable extra uarts instead of plain gpios.
 ```
 # mkimage -A arm -O linux -T script -C none -a 0 -e 0 -n "NanoPi M1 Boot Script" -d /.../repo_dir/system/boot.cmd mnt/boot/boot.scr
@@ -69,7 +69,7 @@ repo_dir/d7print/ -> /opt/d7print/ # Control web-app
 repo_dir/system/d7print.service -> /etc/systemd/system/d7print.service # Systemd unit to run it
 repo_dir/system/eth0.network -> /etc/systemd/network/eth0.network # Sets eth0 as a preferred adapter
 repo_dir/system/wlan0.network -> /etc/systemd/network/wlan0.network # enables dhcp on wlan0 and sets it as a secondary adapter
-repo_dir/system/journald.conf -> /etc/systemd/network/wlan0.network # Limits jurnald logs size
+repo_dir/system/journald.conf -> /etc/systemd/journald.conf # Limits jurnald logs size
 
 # EDIT before copy:
 repo_dir/system/wpa_supplicant-wlan0.conf -> /etc/wpa_supplicant/wpa_supplicant-wlan0.conf # setup wifi connection
