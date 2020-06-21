@@ -145,15 +145,13 @@ class HwManager:
     def _serial_write(self, cmd: str):
         self._serial.write(bytes(cmd, 'ascii'))
 
+    @staticmethod
+    def _extract_cmd(raw_cmd: str):
+        return raw_cmd.partition(';')[0].strip()
+
     def _exec(self, raw_cmd: str):
-        cmd = raw_cmd.partition(';')[0].strip()
+        cmd = self._extract_cmd(raw_cmd)
         lcmd = cmd.lower()
-        if not lcmd:
-            self._log_add(f'>>> {raw_cmd}')
-            return
-        if lcmd == '?':
-            self._serial_write('?')
-            return
 
         self._log_add(f'>>> {raw_cmd}')
 
@@ -169,6 +167,8 @@ class HwManager:
         elif lcmd == 'shutdown':
             self._reset_pin(0)
             os.system('systemctl poweroff')
+        elif lcmd == '?':
+            self._serial_write('?')
         elif lcmd == '!':
             self._hold = True
             self._serial_write('!')
@@ -181,7 +181,7 @@ class HwManager:
         elif lcmd.startswith('delay'):
             millis = re.findall(r'[0-9]+', lcmd)
             self._delay_end = time.time() + int(millis[0] if millis else 0) / 1000
-        else:
+        elif lcmd:
             if lcmd.startswith('$h'):
                 self._grbl_homing = True
             self._await_response = True
@@ -210,7 +210,7 @@ class HwManager:
                 if not self._serial.is_open:
                     self._serial.open()
                 sleep(0.05)
-                self._exec('?')
+                self._serial_write('?')
                 sleep(0.05)
                 self._read_loop()
                 self._run_loop()
@@ -304,8 +304,8 @@ class HwManager:
             self._exec(self._commands.popleft())
         elif not idle and not running and not holding and not waiting:
             if self._commands:
-                cmd = self._commands[0]
-                if cmd.startswith('$') or cmd in ['reset', 'hwreset', 'reboot', 'shutdown']:
+                cmd = self._extract_cmd(self._commands[0])
+                if not cmd or cmd.startswith('$') or cmd in ['reset', 'hwreset', 'reboot', 'shutdown']:
                     self._exec(self._commands.popleft())
                 else:
                     raise GrblStateException(f'Invalid grbl state: {self._grbl_state} for {cmd}')
