@@ -23,7 +23,7 @@ It expects some experience with linux (preferably arch) and AVR development (or 
 * Configure grbl runtime params (my settings can be used from `system/grbl.cfg`, you can copy-paste them to web-interface later)
 
 ## Setting up ArchLinuxArm (ALARM) image
-Base instructions taken from https://wiki.archlinux.org/index.php/NanoPi_M1
+Base instructions taken from [https://wiki.archlinux.org/title/User:Lafleur/NanoPi_M1](https://wiki.archlinux.org/title/User:Lafleur/NanoPi_M1)
   
 * Create a single primary partition on sdcard and format it to ext4 with `mkfs.ext4 -O '^metadata_csum,^64bit' /dev/sdX1`
 * Mount it to some local dir and extract fresh ALARM image from root shell (sudo does not work here!)
