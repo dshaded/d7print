@@ -70,9 +70,17 @@ repo_dir/system/d7print.service -> /etc/systemd/system/d7print.service # Systemd
 repo_dir/system/eth0.network -> /etc/systemd/network/eth0.network # Sets eth0 as a preferred adapter
 repo_dir/system/wlan0.network -> /etc/systemd/network/wlan0.network # enables dhcp on wlan0 and sets it as a secondary adapter
 repo_dir/system/journald.conf -> /etc/systemd/journald.conf # Limits jurnald logs size
+repo_dir/system/display_edid.bin -> /usr/lib/firmware/display_edid.bin # Fixes occasionally missing EDID from HDMI to LVDS converter board
+repo_dir/system/mkinitcpio.conf -> /etc/mkinitcpio.conf # Adds display_edid.bin to the initcpio image for early mode setting
+
 
 # EDIT before copy:
-repo_dir/system/wpa_supplicant-wlan0.conf -> /etc/wpa_supplicant/wpa_supplicant-wlan0.conf # setup wifi connection
+repo_dir/system/wpa_supplicant-wlu1.conf -> /etc/wpa_supplicant/wpa_supplicant-wlu1.conf # setup wifi connection
+```
+
+Rebuild initcpio to add the display_edid.bin from the updated mkinitcpio.conf
+```
+# mkinitcpio -P
 ```
 
 Install python packages and enable systemd services
