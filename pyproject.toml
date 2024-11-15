@@ -1,0 +1,15 @@
+[tool.poetry]
+name = "d7-python"
+version = "0.1.0"
+description = ""
+authors = ["Denis Vygovskiy <dshaded@gmail.com>"]
+readme = "README.md"
+packages = [{include = "d7"}]
+
+[tool.poetry.dependencies]
+python = "^3.11"
+
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"

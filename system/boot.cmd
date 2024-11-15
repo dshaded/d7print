@@ -1,5 +1,5 @@
 part uuid ${devtype} ${devnum}:${bootpart} uuid
-setenv bootargs console=${console} root=PARTUUID=${uuid} rw rootwait
+setenv bootargs console=${console} root=PARTUUID=${uuid} rw rootwait drm.edid_firmware=display_edid.bin  vt.global_cursor_default=0
 
 if load ${devtype} ${devnum}:${bootpart} ${kernel_addr_r} /boot/zImage; then
   if load ${devtype} ${devnum}:${bootpart} ${fdt_addr_r} /boot/${fdtfile}; then
