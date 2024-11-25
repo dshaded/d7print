@@ -4,11 +4,13 @@ version = "0.1.0"
 description = ""
 authors = ["Denis Vygovskiy <dshaded@gmail.com>"]
 readme = "README.md"
-packages = [{include = "d7"}]
+packages = [{include = "d7print"}]
 
 [tool.poetry.dependencies]
 python = "^3.11"
-
+Flask = "^3.0.0"
+pillow = "^11.0.0"
+pyserial = "^3.0"
 
 [build-system]
 requires = ["poetry-core"]
