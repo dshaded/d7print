@@ -84,11 +84,16 @@ def create_app():
             return {'status': 'Bad filename'}
 
         try:
-            path = uploads_dir + file
-            rm_newline = str.maketrans('', '', '\r\n')
-            with ZipFile(path) as zf, zf.open('run.gcode') as gcode:
-                text = list(str(l, 'utf8').translate(rm_newline) for l in gcode.readlines())
+            with ZipFile(uploads_dir + file) as zf:
                 hw_man.set_image_pack(file)
+                scripts = list(n for n in zf.namelist() if n.lower().endswith('.gcode'))
+                text = []
+                if len(scripts) > 1:
+                    return {'status': 'Multiple scripts found: ' + ', '.join(scripts)}
+                elif len(scripts) == 1:
+                    with zf.open(scripts[0]) as gcode:
+                        rm_newline = str.maketrans('', '', '\r\n')
+                        text = list(str(l, 'utf8').translate(rm_newline) for l in gcode.readlines())
                 return {'status': 'ok', 'gcode': text}
         except Exception as e:
             return {'status': str(e)}
@@ -146,8 +151,7 @@ def create_app():
 
     @app.route('/api/log', methods=['GET'])
     def log():
-        idx = request.args.get('id', default=0, type=int)
-        return {'status': 'ok', 'log': hw_man.get_log(idx)}
+        return {'status': 'ok', 'log': hw_man.get_log()}
 
     @app.route('/api/grbl_state', methods=['GET'])
     def grbl_state():
