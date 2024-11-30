@@ -84,17 +84,18 @@ def create_app():
             return {'status': 'Bad filename'}
 
         try:
-            with ZipFile(uploads_dir + file) as zf:
-                hw_man.set_image_pack(file)
-                scripts = list(n for n in zf.namelist() if n.lower().endswith('.gcode'))
-                text = []
-                if len(scripts) > 1:
-                    return {'status': 'Multiple scripts found: ' + ', '.join(scripts)}
-                elif len(scripts) == 1:
-                    with zf.open(scripts[0]) as gcode:
-                        rm_newline = str.maketrans('', '', '\r\n')
-                        text = list(str(l, 'utf8').translate(rm_newline) for l in gcode.readlines())
-                return {'status': 'ok', 'gcode': text}
+            lines = []
+            if file.lower().endswith('.gcode'):
+                hw_man.set_image_pack('')
+                with open(uploads_dir + file) as gcode:
+                    lines = gcode.readlines()
+            else:
+                with ZipFile(uploads_dir + file) as zf:
+                    hw_man.set_image_pack(file)
+                    if scripts := list(n for n in zf.namelist() if n.lower().endswith('.gcode')):
+                        with zf.open(scripts[0]) as gcode:
+                            lines = [str(line, 'utf8') for line in gcode.readlines()]
+            return {'status': 'ok', 'gcode': [line.rstrip() for line in lines]}
         except Exception as e:
             return {'status': str(e)}
 
