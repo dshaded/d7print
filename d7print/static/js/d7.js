@@ -80,14 +80,19 @@ setInterval(function() {
         timeout: 2000
     }).done(function(data) {
         if(data.status == 'ok') {
+            var log_area = cmd_log.get(0)
+            var follow = log_area.scrollTop > log_area.scrollHeight - log_area.clientHeight - 32
             for(l of data.log) {
                 if(l.id < last_log_id && l.time > (last_log_time + 0.01)) {
                     last_log_id = -1
                 }
                 if(l.id > last_log_id) {
-                    cmd_log.val(function(index, old){ return l.msg + '\n' + old })
+                    cmd_log.val(function(index, old){ return old + l.msg + '\n' })
                     last_log_id = l.id
                     last_log_time = l.time
+                    if(follow) {
+                        log_area.scrollTop = log_area.scrollHeight
+                    }
                 }
             }
             cmd_queue.val(data.queue.join('\n'))

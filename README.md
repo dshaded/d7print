@@ -85,7 +85,7 @@ Rebuild initcpio to add the display_edid.bin from the updated mkinitcpio.conf
 
 Install python packages and enable systemd services
 ```
-# pacman -S python-flask python-pillow python-pyserial
+# pacman -S python-flask python-pillow python-pyserial python-numpy
 # chmod 664 /etc/systemd/system/d7print.service
 # mkdir /root/uploads
 # chmod 644 /root/uploads
