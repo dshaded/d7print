@@ -112,11 +112,15 @@ class HwManager:
     def _reset_pin(self, state):
         open(self._gpio_reset_path, 'w').write('1' if state else '0')
 
-    def _exec(self, raw_cmd: str) -> bool:
+    def _exec(self, raw_cmd: str, immediate=False) -> bool:
         cmd = raw_cmd.partition(';')[0].strip()
         lcmd = cmd.lower()
 
-        if lcmd == 'reset' or '\x18' in cmd:
+        if lcmd.startswith('preload'):
+            self._display.preload(cmd[7:].strip())
+        elif self._is_waiting() and not immediate:
+            return False
+        elif lcmd == 'reset' or '\x18' in cmd:
             self._grbl.send('\x18')
             self._reset_state()
         elif lcmd == 'hwreset':
@@ -134,8 +138,6 @@ class HwManager:
             self._reset_state()
         elif lcmd.startswith('blank'):
             self._display.blank()
-        elif lcmd.startswith('preload'):
-            self._display.preload(cmd[7:].strip())
         elif lcmd.startswith('slice'):
             self._display.show(cmd[5:].strip())
         elif lcmd.startswith('delay'):
@@ -180,13 +182,13 @@ class HwManager:
             if line.startswith(('ok', 'error')):
                 self._await_response = False
             if line.startswith('error'):
-                self._exec('!')
+                self._exec('!', True)
 
         if self._immediate_command:
-            self._exec(self._immediate_command)
+            self._exec(self._immediate_command, True)
             self._immediate_command = ''
 
-        while self._commands and not self._is_waiting() and self._exec(cmd := self._commands[0]):
+        while self._commands and self._exec(cmd := self._commands[0]):
             self._log_add(f'> {cmd}')
             if self._commands:
                 self._commands.popleft()
