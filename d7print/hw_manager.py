@@ -132,8 +132,12 @@ class HwManager:
             self._reset_pin(0)
             os.system('systemctl poweroff')
             self._reset_state()
+        elif lcmd.startswith('blank'):
+            self._display.blank()
+        elif lcmd.startswith('preload'):
+            self._display.preload(cmd[7:].strip())
         elif lcmd.startswith('slice'):
-            self._display.show_image(cmd[5:].strip())
+            self._display.show(cmd[5:].strip())
         elif lcmd.startswith('delay'):
             millis = re.findall(r'[0-9]+', lcmd)
             self._delay_end = time.time() + int(millis[0] if millis else 0) / 1000
