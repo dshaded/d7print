@@ -25,15 +25,15 @@ class Display:
         self._black().tofile(self._fb_device)
 
     def preload(self, image_name: str):
-        img = self._load_image(image_name, self._image_pack_dir, self._image_pack_file)
-        if img.shape != self._img_mask.shape:
-            raise ValueError(f'Image shape {img.shape} does not match expected {self._img_mask.shape}')
-        self._preload_buf = np.multiply(img, self._img_mask, dtype='uint32') // 255 * 0x00010101
-        self._preload_name = image_name
+        if image_name and image_name != self._preload_name:
+            img = self._load_image(image_name, self._image_pack_dir, self._image_pack_file)
+            if img.shape != self._img_mask.shape:
+                raise ValueError(f'Image shape {img.shape} does not match expected {self._img_mask.shape}')
+            self._preload_buf = np.multiply(img, self._img_mask, dtype='uint32') // 255 * 0x00010101
+            self._preload_name = image_name
 
     def show(self, image_name: str):
-        if image_name and image_name != self._preload_name:
-            self.preload(image_name)
+        self.preload(image_name)
         self._preload_buf.tofile(self._fb_device)
 
     @staticmethod
