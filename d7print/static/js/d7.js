@@ -74,9 +74,10 @@ form_cmd.submit(function() {
 
 var last_log_id = -1
 var last_log_time = 0
+var last_cfg_version = 0
 setInterval(function() {
     $.ajax('/api/info', {
-        data: {time: Math.floor(last_log_time)},
+        data: {time: Math.floor(last_log_time), cfg_version: last_cfg_version},
         timeout: 2000
     }).done(function(data) {
         if(data.status == 'ok') {
@@ -96,6 +97,12 @@ setInterval(function() {
                 }
             }
             cmd_queue.val(data.queue.join('\n'))
+
+            if(data.cfg_version > last_cfg_version) {
+                $('#preproc-cfg').val(data.cfg.join('\n'))
+                last_cfg_version = data.cfg_version
+            }
+
             $('#text-grbl-state').val(data.state)
             $('#title-file-name').text(data.file ? data.file : '<Root dir>')
         } else {

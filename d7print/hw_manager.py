@@ -10,6 +10,7 @@ from flask import Flask
 
 from d7print.display import Display
 from d7print.grbl import Grbl
+from d7print.preprocessor import Preprocessor
 
 
 class GrblStateException(Exception):
@@ -28,6 +29,8 @@ class HwManager:
         self._app = app
         self._display = Display(pack_dir, '/dev/fb0')
         self._grbl = Grbl('/dev/ttyS3', 115200, self._comm_period * 5)
+        self._pack_dir = pack_dir
+        self._preprocessor = Preprocessor()
 
         self._commands: deque[str] = deque()
         self._immediate_command: str = ''
@@ -48,15 +51,37 @@ class HwManager:
         self._delay_end: float = 0.0
         self._commands.clear()
 
-    def set_image_pack(self, image_pack_path: str):
-        self._display.set_image_pack(image_pack_path)
+    def set_image_pack(self, image_pack_file_name: str):
+        self._preprocessor.set_image_pack(f'{self._pack_dir}/{image_pack_file_name}')
+        self._display.set_image_pack(image_pack_file_name)
 
     def get_image_pack(self) -> str:
         return self._display.get_image_pack()
 
+    def get_preprocessor_cfg(self):
+        return self._preprocessor.get_cfg()
+
+    def get_preprocessor_cfg_version(self):
+        return self._preprocessor.get_cfg_version()
+
     def add_commands(self, commands: List[str]):
         self._ensure_running()
-        self._commands.extend(commands)
+        try:
+            processed = []
+            for cmd in commands:
+                processed.extend(self._preprocessor.preprocess_line(cmd))
+            self._commands.extend(processed)
+        except Exception as e:
+            self._log_add(f'Failed to add commands: {e}', e)
+            raise e
+
+    def preprocess(self, commands: List[str]):
+        try:
+            for cmd in commands:
+                self._preprocessor.preprocess_line(cmd)
+        except Exception as e:
+            self._log_add(f'Failed to preprocess commands: {e}', e)
+            raise e
 
     def get_commands(self) -> List[str]:
         return list(self._commands)

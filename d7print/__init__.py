@@ -65,9 +65,11 @@ def create_app():
     def execute():
         if hw_man.get_commands():
             return {'status': 'Printer busy'}
-
-        hw_man.add_commands(_rp('cmd').split('\n'))
-        return {'status': 'ok'}
+        try:
+            hw_man.add_commands(_rp('cmd').split('\n'))
+            return {'status': 'ok'}
+        except Exception as e:
+            return {'status': str(e)}
 
     @app.route('/api/load', methods=['GET', 'POST'])
     def load():
@@ -86,7 +88,6 @@ def create_app():
         try:
             lines = []
             if file.lower().endswith('.gcode'):
-                hw_man.set_image_pack('')
                 with open(uploads_dir + file) as gcode:
                     lines = gcode.readlines()
             else:
@@ -95,7 +96,12 @@ def create_app():
                     if scripts := list(n for n in zf.namelist() if n.lower().endswith('.gcode')):
                         with zf.open(scripts[0]) as gcode:
                             lines = [str(line, 'utf8') for line in gcode.readlines()]
-            return {'status': 'ok', 'gcode': [line.rstrip() for line in lines]}
+                        if lines and lines[0].strip().lower().startswith('mapfile'):
+                            hw_man.preprocess(lines)
+                            lines = None
+            if lines:
+                lines = [line.rstrip() for line in lines]
+            return {'status': 'ok', 'gcode': lines}
         except Exception as e:
             return {'status': str(e)}
 
@@ -118,12 +124,15 @@ def create_app():
     @app.route('/api/info', methods=['GET'])
     def info():
         time = request.args.get('time', default=0, type=int)
+        send_cfg = request.args.get('cfg_version', default=0, type=int) < hw_man.get_preprocessor_cfg_version()
         return {
             'status': 'ok',
             'log': [l for l in hw_man.get_log() if l['time'] >= time],
             'queue': hw_man.get_commands(),
             'file': hw_man.get_image_pack(),
-            'state': hw_man.get_grbl_state_line()
+            'state': hw_man.get_grbl_state_line(),
+            'cfg': hw_man.get_preprocessor_cfg() if send_cfg else None,
+            'cfg_version': hw_man.get_preprocessor_cfg_version()
         }
 
     @app.route('/api/command', methods=['GET', 'POST'])
