@@ -9,29 +9,29 @@ from werkzeug.utils import secure_filename, redirect
 
 from d7print.hw_manager import HwManager
 
-dictConfig({
-    'version': 1,
-    'formatters': {'default': {
-        'format': '[%(asctime)s] %(levelname)s in %(name)s: %(message)s',
-    }},
-    'handlers': {'file': {
-        'class': 'logging.handlers.RotatingFileHandler',
-        'formatter': 'default',
-        'filename': '/var/log/d7print.log',
-        'maxBytes': 1048576,
-        'backupCount': 5
-    }},
-    'root': {
-        'level': 'INFO',
-        'handlers': ['file']
-    },
-    'loggers': {
-        'werkzeug': {'level': 'WARNING'},
-    }
-})
-
 
 def create_app():
+    dictConfig({
+        'version': 1,
+        'formatters': {'default': {
+            'format': '[%(asctime)s] %(levelname)s in %(name)s: %(message)s',
+        }},
+        'handlers': {'file': {
+            'class': 'logging.handlers.RotatingFileHandler',
+            'formatter': 'default',
+            'filename': '/var/log/d7print.log',
+            'maxBytes': 1048576,
+            'backupCount': 5
+        }},
+        'root': {
+            'level': 'INFO',
+            'handlers': ['file']
+        },
+        'loggers': {
+            'werkzeug': {'level': 'WARNING'},
+        }
+    })
+
     app = Flask(__name__)
     app.secret_key = 'd7_print_secret_key'
     uploads_dir = '/root/uploads/'

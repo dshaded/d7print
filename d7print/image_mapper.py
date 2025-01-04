@@ -4,7 +4,7 @@ from itertools import zip_longest
 from xml.etree.ElementTree import ElementTree
 from zipfile import ZipFile
 
-from d7print.utils import float_x1000
+from d7print.utils import float_x1000, sorted_alphanum
 
 
 class ImageMapper:
@@ -22,7 +22,7 @@ class ImageMapper:
         self._layers_map.clear()
 
         with (ZipFile(image_pack_path) as zf):
-            for name in sorted(zf.namelist()):
+            for name in sorted_alphanum(zf.namelist()):
                 if re.fullmatch(r'.*\d.*\.png', name, re.IGNORECASE):
                     self._image_names.append(name)
                 elif name.lower() == 'manifest.xml':
