@@ -124,7 +124,7 @@ def create_app():
     @app.route('/api/info', methods=['GET'])
     def info():
         time = request.args.get('time', default=0, type=int)
-        send_cfg = request.args.get('cfg_version', default=0, type=int) < hw_man.get_preprocessor_cfg_version()
+        send_cfg = request.args.get('cfg_version', default=0, type=int) != hw_man.get_preprocessor_cfg_version()
         return {
             'status': 'ok',
             'log': [l for l in hw_man.get_log() if l['time'] >= time],

@@ -98,7 +98,7 @@ setInterval(function() {
             }
             cmd_queue.val(data.queue.join('\n'))
 
-            if(data.cfg_version > last_cfg_version) {
+            if(data.cfg_version != last_cfg_version) {
                 $('#preproc-cfg').val(data.cfg.join('\n'))
                 last_cfg_version = data.cfg_version
             }
