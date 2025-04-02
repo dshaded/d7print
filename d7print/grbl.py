@@ -1,5 +1,4 @@
 import time
-from typing import List
 
 from serial import Serial, SerialException
 
@@ -20,7 +19,7 @@ class Grbl:
         self._await_response: bool = False
         self._homing: bool = False
 
-        self._status_line: List[str] = ['', '', '']
+        self._status_line: list[str] = ['', '', '']
         self._state: str = ''
 
     def send(self, cmd: str):
@@ -35,27 +34,28 @@ class Grbl:
             except Exception:
                 pass
 
-    def receive(self) -> List[str]:
+    def receive(self) -> list[str]:
+        """Receive GRBL's response line by line. Also send "?" status query when necessary and intercept the response."""
         try:
             if not self._serial.is_open:
                 self._serial.open()
             if time.time() > self._last_state_request_time + self._state_request_period:
                 self._last_state_request_time = time.time()
                 self._serial.write(b'?')
-            try:
-                result = []
-                for b in self._serial.read(4096):
-                    self._parse_byte(b, result)
-                return result
-            except OSError as e:
-                if e.errno != 11:  # device temporary unavailable
-                    raise e
-        except SerialException:
+
+            result = []
+            for b in self._serial.read(4096):
+                self._parse_byte(b, result)
+            return result
+        except OSError as e:
             # noinspection PyBroadException
             try:
                 self._serial.close()
             except Exception:
                 pass
+            if e.errno == 11:  # device temporary unavailable - just silently wait for it
+                return []
+            raise e
 
     def get_status_line(self):
         return '|'.join(self._status_line)
@@ -67,7 +67,7 @@ class Grbl:
     def close(self):
         self._serial.close()
 
-    def _parse_byte(self, b, parsed_lines: List[str]):
+    def _parse_byte(self, b, parsed_lines: list[str]):
         if b == 13 or b == 0:
             return
 
