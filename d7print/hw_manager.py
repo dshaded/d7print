@@ -1,3 +1,4 @@
+import logging
 import os
 import re
 import time
@@ -6,30 +7,25 @@ from threading import Lock, Thread
 from time import sleep
 from typing import List, Optional
 
-from flask import Flask
-
 from d7print.display import Display
 from d7print.grbl import Grbl
 from d7print.preprocessor import Preprocessor
 
 
-class GrblStateException(Exception):
-    pass
-
-
 class HwManager:
 
-    def __init__(self, app: Flask, pack_dir: str):
+    def __init__(self, logger: logging.Logger, pack_dir: str):
+        self._logger = logger
+        self._pack_dir = pack_dir
+
+        # Hard-coded configuration and subsystem initialization:
         self._comm_period = 0.05
         self._guard_file = '/var/run/d7print.guard'
         self._gpio_reset_path = '/sys/class/gpio/gpio7/value'
         open('/sys/class/gpio/export', 'w').write('7')
         open('/sys/class/gpio/gpio7/direction', 'w').write('high')
-
-        self._app = app
         self._display = Display(pack_dir, '/dev/fb0')
         self._grbl = Grbl('/dev/ttyS3', 115200, self._comm_period * 5)
-        self._pack_dir = pack_dir
         self._preprocessor = Preprocessor()
 
         self._commands: deque[str] = deque()
@@ -122,9 +118,9 @@ class HwManager:
 
     def _log_add(self, msg: str, e: Exception = None):
         if e:
-            self._app.logger.error(msg, exc_info=e)
+            self._logger.error(msg, exc_info=e)
         else:
-            self._app.logger.info(msg)
+            self._logger.info(msg)
 
         with self._log_lock:
             last_id = self._run_log[len(self._run_log) - 1]['id'] if self._run_log else 0

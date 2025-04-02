@@ -37,7 +37,7 @@ def create_app():
     uploads_dir = '/root/uploads/'
     os.makedirs(uploads_dir, 0o664, exist_ok=True)
 
-    hw_man = HwManager(app, uploads_dir)
+    hw_man = HwManager(app.logger, uploads_dir)
 
     @app.route('/')
     def home():

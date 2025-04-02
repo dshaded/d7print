@@ -1,7 +1,7 @@
 import re
 
 
-def float_x1000(spec: str):
+def float_x1000(spec: str|int):
     return round(float(spec) * 1000)
 
 
