@@ -49,7 +49,7 @@ class Preprocessor:
                     self._ruleset.clear()
                 else:
                     self._ruleset.add_rule(args)
-                self._cfg_version = time()
+                self._cfg_version += 1
             elif dl == '@print':
                 result.extend(self._print(args))
             elif dl == '@preview':
