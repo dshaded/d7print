@@ -4,6 +4,9 @@
 This is repo mostly serves as a documentation of what I have done to run my own control software on Wanhao d7+ printer.
 It expects some experience with linux (preferably arch) and AVR development (or at least some knowledge of grbl).
 
+## Print file format and supported commands
+Described in Format.md
+
 ## Expected hardware modifications
 * External USB Wi-Fi adapter (DEXP WFA-151 in my case)
 * Hardwired GPIO from Nanopi to Controller board (usb-b connector is not used):
@@ -98,11 +101,11 @@ Web-ui should be up and running at port 80 after reboot
  
  ## Some useful notes
  * d7print/mask.png must be customized for used screen-projector pair
- * Framebuffer format is 32 pbs BGRx
+ * Framebuffer format is 32 bps BGRx
  * Display LS055R1SX04 parameters are 1440x2560 68.04×120.96mm 0.04725 mm per pixel
  * Flask does not support background threads well. So we need some way of shutting down hardware managing thread when web app is unloaded by debugger
  or reloader. `/var/run/d7print.guard` file is used for this purpose. Hw manager thread touches this file on startup and dies whenever someone
- else touces it later.
+ else touches it later.
   
 
 
