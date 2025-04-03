@@ -4,6 +4,8 @@ from serial import Serial, SerialException
 
 
 class Grbl:
+    """Simple GRBL serial communication helper. Manages sending string commands, receiving responses line by line
+    and monitoring the status info in background."""
 
     def __init__(self, port: str, baudrate: int, state_request_period: float):
         self._serial = Serial()
@@ -23,6 +25,7 @@ class Grbl:
         self._state: str = ''
 
     def send(self, cmd: str):
+        """Send a text command (a single-character, a "\n"-terminated line, or multiple lines)"""
         try:
             if not self._serial.is_open:
                 self._serial.open()
@@ -58,6 +61,7 @@ class Grbl:
             raise e
 
     def get_status_line(self):
+        """Get GRBL's status line (potentially merged from multiple responses)"""
         return '|'.join(self._status_line)
 
     def get_state(self):
@@ -77,11 +81,11 @@ class Grbl:
 
         line = str(self._recv_buf, 'ascii')
         self._recv_buf.clear()
-        if line.startswith('<'):
+        if line.startswith('<'):  # intercept GRBL's status response
             line_parts = line.strip('<> ').split('|')
             self._state = line_parts[0]
             self._status_line[0] = '|'.join(line_parts[0:4])
-            if len(line_parts) > 4:
+            if len(line_parts) > 4:  # extra info received - put it to _status_line[1 or 2]
                 self._status_line[1 if line_parts[4].startswith('Ov') else 2] = line_parts[4]
             self._state_response_expiry = time.time() + self._state_request_period * 2
         else:

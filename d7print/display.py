@@ -6,6 +6,7 @@ from PIL import Image
 
 
 class Display:
+    """Loads images from file system and pack files, applies mask, writes to frame buffer."""
 
     def __init__(self, pack_dir: str, fb_device: str):
         self._fb_device = fb_device
@@ -16,23 +17,30 @@ class Display:
         self._preload_name = ''
 
     def set_image_pack(self, image_pack_path: str):
+        """Set current image pack. Use empty string to clear."""
         self._image_pack_file = image_pack_path
 
     def get_image_pack(self) -> str:
+        """Get currently loaded image pack."""
         return self._image_pack_file
 
     def blank(self):
+        """Fill frame buffer with all-black image."""
         self._black().tofile(self._fb_device)
 
     def preload(self, image_name: str):
+        """Load the image from pack file (or from pack dir if not found in the pack), apply the mask,
+        but do not write to frame buffer. The last loaded image is cached."""
         if image_name and image_name != self._preload_name:
             img = self._load_image(image_name, self._image_pack_dir, self._image_pack_file)
             if img.shape != self._img_mask.shape:
                 raise ValueError(f'Image shape {img.shape} does not match expected {self._img_mask.shape}')
+            # optimization: multiply 2 8-bit grayscale arrays, divide by 255 to return back to 8 bits, transform to ARGB
             self._preload_buf = np.multiply(img, self._img_mask, dtype='uint32') // 255 * 0x00010101
             self._preload_name = image_name
 
     def show(self, image_name: str):
+        """Preload the image and write it to frame buffer."""
         self.preload(image_name)
         self._preload_buf.tofile(self._fb_device)
 
